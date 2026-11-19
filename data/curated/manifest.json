@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "dataset_version": "b5e13af6b91b9188",
+  "built_at": "2026-11-19T13:59:40.088Z",
+  "records": 35,
+  "sources": {
+    "wasalt": 22,
+    "darglobal": 13
+  },
+  "input_files": [
+    "data/wasalt/properties.jsonl",
+    "data/darglobal/crawl/projects.jsonl"
+  ],
+  "checks_passed": 19,
+  "usable_with_caveats": 16,
+  "records_with_blocked_area": 13,
+  "possible_duplicate_groups": [
+    "wasalt-villa-333-riyadh"
+  ],
+  "collection_dates": [
+    "2026-11-19"
+  ],
+  "reviews_sha256": "bd0f7632481c5ff158bc05f78d631f558138c834d12c644f739c00d9729a8830",
+  "limitations": [
+    "Subset of both sites, not full market coverage.",
+    "Source claims and availability are not independently verified.",
+    "Blocked fields must not be used for comparisons or filters.",
+    "Possible duplicate listings remain separate; do not call record counts unique property counts."
+  ]
+}
