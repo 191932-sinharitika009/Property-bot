@@ -10,16 +10,18 @@ Cloud Run preparation: user selected Google Cloud and supplied project ID
 `project-1275534d-53d6-4c08-b10`. Added a Cloud Shell deployment script with remote
 Docker build, dedicated runtime identity, Secret Manager and conservative scaling.
 Added an upload allowlist to exclude local keys and raw data. Local gcloud is absent;
-authenticated deployment and its public URL remain pending. The eight component
+the user performed the Cloud Shell deployment and supplied the resulting public URL.
+The public homepage, health endpoint and real cited answers now pass verification.
+The eight component
 commits were successfully pushed to `191932-sinharitika009/Property-bot` on main.
 
 GitHub/hosting preparation: initialized a local `main` repository using the user's
 existing Git identity. The current implementation is being grouped into component
 commits with real commit timestamps; these are not historical daily checkpoints.
 Added Render's free Docker service configuration and GitHub CI for automated tests,
-retrieval evaluation, Docker build, health and private-file exclusion. CI and remote
-deployment have not run. GitHub repository selection/access and hosting connection
-are pending. Only curated records and manifest are included for reproducible builds;
+retrieval evaluation, Docker build, health and private-file exclusion. CI status has
+not been independently checked; Cloud Run is now publicly reachable. Only curated
+records and manifest are included for reproducible builds;
 the API key, raw pages and review evidence remain ignored. Secret scan passed.
 
 Sidebar follow-up: replaced the separate sidebar scrollbar with normal document
@@ -50,8 +52,22 @@ and its final snapshot note is reachable.
   correction for withheld conflicting values; broader evaluation remains pending.
 - Browser interface and Docker packaging are implemented. Fifty-two tests pass;
   desktop/mobile browser smoke checks and one live browser-to-model answer pass.
-  Docker is absent locally, so image build/run verification is pending. Hosting
-  and a public URL remain unimplemented.
+  Docker is absent locally; the app is now hosted on Cloud Run and public API checks
+  pass. Build logs and GitHub CI results remain to be inspected independently.
+
+## 2026-11-19 — Public deployment verified
+
+- Live URL: https://property-bot-463606904338.asia-south1.run.app/
+- User completed the Cloud Shell deployment and supplied the URL. External checks
+  returned HTTP 200 for `/` and `/health`, with all 35 records loaded.
+- POST `/api/chat` returned a real OpenRouter answer for Les Vagues bedroom options:
+  1, 2 and 3, citing the collected DarGlobal record.
+- A second public question returned the Jeddah annual apartment rental, preserving
+  its published 2,000 SAR yearly price, one bedroom and withheld-area caveat, with
+  a Wasalt citation. Both responses identified `nvidia/nemotron-3.5-super-vl:free`.
+- Updated README with the live demo and verification scope. No secrets were sent
+  by the test client or included in documentation. Cloud IAM/build logs and billing
+  settings have not been independently inspected; broader final evaluation remains.
 
 ## 2026-11-19 — Browser interface and Docker packaging
 
@@ -259,5 +275,5 @@ Raw snapshots stay local.
 2. Verify the Docker build and container health on a Docker-capable machine.
 3. Expand reviewed coverage in parallel with application work when access permits;
    the Wasalt coverage target and fully incremental collection remain outstanding.
-4. Package with Docker, deploy, and verify the public URL.
+4. Inspect remote build/CI results and run the final deployed-app evaluation.
 5. Evaluate the deployed chatbot and prepare the assignment demonstration.

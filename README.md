@@ -1,5 +1,14 @@
 # Property chatbot
 
+**Live demo:** https://property-bot-463606904338.asia-south1.run.app/
+
+Public Cloud Run verification succeeded on 19 November 2026: the homepage and
+health endpoint returned HTTP 200, and real OpenRouter answers with valid source
+citations were returned for both DarGlobal and Wasalt. The snapshot contains 35
+records; current availability is unverified. Cold starts and free-model rate limits
+can delay responses. Try "Les Vagues bedroom options" or "Annual apartment rentals
+in Jeddah". The deployed model is `nvidia/nemotron-3.5-super-vl:free`.
+
 See [PROJECT_LOG.md](PROJECT_LOG.md) for the single project history, current
 status, known issues, and next steps. This README covers setup and usage.
 See [PLAN.md](PLAN.md) for the implementation milestones and completion criteria.
@@ -131,9 +140,10 @@ but are not a hard spending cap. Builds, stored images and secrets can also cons
 trial credits. Set billing budget alerts in the console; alerts do not stop spending.
 Sessions live in memory and can reset when the service scales down or restarts.
 
-The script prints the HTTPS URL and checks `/health`. A successful real cited answer
-must still be verified after deployment. This script has not yet run against Google
-Cloud; project/API permissions and the remote build remain unverified.
+The script prints the HTTPS URL and checks `/health`. After the user performed the
+Cloud Shell deployment, the public homepage, health endpoint and real cited answers
+from both sources were verified. Cloud Build logs and IAM settings have not been
+independently inspected from this workspace.
 
 ### Render alternative
 
