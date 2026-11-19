@@ -16,7 +16,21 @@ async function ask(question) {
     const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }), signal: AbortSignal.timeout(45000) });
     const data = await response.json();
     const card = message(response.ok ? 'assistant' : 'error', data.message);
+    for (const record of data.evidence ?? []) {
+      const url = new URL(record.url);
+      if (url.protocol !== 'https:' || !['wasalt.sa', 'darglobal.co.uk'].includes(url.hostname)) continue;
+      const link = element('a', record.title, 'source-card');
+      link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      const offer = record.offer;
+      const price = Number.isFinite(offer.amount) ? `${offer.amount.toLocaleString()} ${offer.currency ?? ''}${offer.period ? ' per ' + offer.period : ''}` : 'Price not recorded';
+      link.append(element('small', `${record.city ?? 'Location not recorded'} · ${price}`));
+      link.append(element('small', 'Snapshot evidence · availability unverified'));
+      if (record.quality?.warnings?.length) link.append(element('small', 'Some details need review.'));
+      card.append(link);
+    }
     if (data.statements) {
+      if (data.generated_by === 'saved_openrouter') card.append(element('p', 'Saved answer · based on this collection', 'note'));
+      if (data.total_matches > data.sources.length) card.append(element('p', `Showing selected evidence from ${data.total_matches} matching records.`, 'note'));
       for (const statement of data.statements) {
         const numbers = statement.source_ids.map(id => data.sources.findIndex(s => s.id === id) + 1);
         card.append(element('p', `${statement.text} [${numbers.join(', ')}]`));

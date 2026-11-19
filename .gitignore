@@ -10,4 +10,5 @@ data/review/
 data/curated/*
 !data/curated/records.jsonl
 !data/curated/manifest.json
+!data/curated/starter-answers.json
 *.log

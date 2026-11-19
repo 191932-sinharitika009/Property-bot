@@ -6,6 +6,34 @@ and validation reports are evidence, not additional change logs.
 
 ## Current status — 2026-11-19
 
+Reliability update (awaiting Cloud Run redeploy): four reviewed starter answers
+are now saved and included in Docker. All four were browser-tested with provider
+calls forbidden. Strict response schema, disabled reasoning and a 2,400-token limit
+reduce formatting/truncation failures. One empty/truncated-response recovery shares
+the original 30-second deadline. AI failures expose labelled retrieved evidence.
+Fifty-six automated tests and 19 retrieval cases pass. Recommendations from the
+user's RECOMMENDATIONS.md were reviewed; measured retrieval improvements are recorded
+in PLAN.md rather than adding untested embedding/reranking dependencies now.
+
+## 2026-11-19 — Starter cache and response reliability
+
+- Diagnosed the first starter: a live completed answer omitted per-statement source
+  IDs and instead returned a top-level citation list, correctly failing validation.
+  The user's original incomplete-response event was not directly captured; the old
+  1,600-token limit included model reasoning, a potential truncation cause. A separate
+  pool-question diagnostic used 820 reasoning tokens. No reasoning text was logged.
+- Enforced JSON schema with required per-statement citations, requested reasoning
+  off and raised output allowance to 2,400. All four live starter generations passed.
+- Reviewed saved outputs and corrected overconfident duplicate wording and the
+  distinction between unusually large unverified areas and conflicting source areas.
+- Cache keys bind the complete dataset, prompt and configured model. Every hit
+  revalidates citations and reconstructs source cards and filters from current data.
+  UI labels saved answers. No API key is required for a valid cache hit.
+- Added one bounded recovery for empty/truncated output and evidence cards on AI
+  failure, with no retries for quota/authentication/rate-limit/deadline errors.
+- Added Cloud Run update script preserving existing secrets. Changes require a
+  fresh deployment; the current public service is not updated by a GitHub push.
+
 Cloud Run preparation: user selected Google Cloud and supplied project ID
 `project-1275534d-53d6-4c08-b10`. Added a Cloud Shell deployment script with remote
 Docker build, dedicated runtime identity, Secret Manager and conservative scaling.

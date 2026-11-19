@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { loadEnvFile } from 'node:process';
 import { loadRecords } from './retrieval/search.mjs';
 import { createChat } from './chat/answer.mjs';
+import { loadStarterCache } from './chat/starter-cache.mjs';
 
 export function createServer({ records, chat = createChat(records), rateLimit = 12, now = Date.now }) {
   const sessions = new Map(), rates = new Map();
@@ -71,7 +72,8 @@ export function createServer({ records, chat = createChat(records), rateLimit = 
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try { loadEnvFile('.env'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const server = createServer({ records: await loadRecords() });
+  const records = await loadRecords();
+  const server = createServer({ records, chat: createChat(records, { starterCache: await loadStarterCache() }) });
   const port = Number(process.env.PORT || 8000);
   server.listen(port, '0.0.0.0', () => console.log(`Property chat is running at http://localhost:${port}`));
   for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => server.close(() => process.exit(0)));

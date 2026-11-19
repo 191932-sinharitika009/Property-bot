@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { complete, ChatError } from '../chat/openrouter.mjs';
-import { createChat, validateAnswer } from '../chat/answer.mjs';
+import { createChat, validateAnswer, SYSTEM } from '../chat/answer.mjs';
+import { cacheKey, normalizeQuestion } from '../chat/starter-cache.mjs';
 
 const record = { id: 'darglobal:test', title: 'Les Vagues', source: 'darglobal', record_type: 'project',
   source_url: 'https://darglobal.co.uk/les-vagues', collected_at: '2026-11-19',
@@ -12,11 +13,60 @@ const content = JSON.stringify({ statements: [{ text: 'Bedroom options include 1
 const response = body => new Response(JSON.stringify(body), { status: 200 });
 const success = { model: 'test:free', choices: [{ finish_reason: 'stop', message: { content } }] };
 
+test('saved starters bypass the provider but preserve current filters and source validation', async () => {
+  const starterCache = { fingerprint: cacheKey([record], SYSTEM, 'test:free'), answers: {
+    [normalizeQuestion('Les Vagues bedroom options')]: { statements: JSON.parse(content).statements, model: 'test:free', saved_at: '2026-11-19' },
+  } };
+  const chat = createChat([record], { model: 'test:free', starterCache, completeImpl: () => assert.fail('Must use saved answer') });
+  const result = await chat('  Les Vagues bedroom options  ');
+  assert.equal(result.generated_by, 'saved_openrouter');
+  assert.equal(result.sources[0].url, record.source_url);
+  assert.equal(result.context.query, 'les vagues');
+});
+test('stale cache and corrupt citations fall back to generation', async () => {
+  for (const cache of [
+    { fingerprint: 'old', answers: {} },
+    { fingerprint: cacheKey([record], SYSTEM, 'test:free'), answers: { 'les vagues bedroom options': { statements: [{ text: 'Bad', source_ids: ['unknown'] }], model: 'test:free', saved_at: '2026-11-19' } } },
+  ]) {
+    let calls = 0;
+    const chat = createChat([record], { model: 'test:free', starterCache: cache, completeImpl: async () => { calls++; return { content, model: 'test:free' }; } });
+    assert.equal((await chat('Les Vagues bedroom options')).generated_by, 'openrouter');
+    assert.equal(calls, 1);
+  }
+  assert.notEqual(cacheKey([record], SYSTEM, 'test:free'), cacheKey([{ ...record, title: 'Changed' }], SYSTEM, 'test:free'));
+  assert.notEqual(cacheKey([record], SYSTEM, 'test:free'), cacheKey([record], SYSTEM + 'changed', 'test:free'));
+});
+test('one incomplete generation recovers within the same request deadline', async () => {
+  let calls = 0;
+  const signals = [];
+  const result = await complete([], { apiKey: 'test', fetchImpl: async (_, options) => {
+    signals.push(options.signal);
+    calls++;
+    return response(calls === 1 ? { choices: [{ finish_reason: 'length', message: { content: '' } }] } : success);
+  } });
+  assert.equal(calls, 2);
+  assert.equal(result.recovery_attempts, 1);
+  assert.equal(signals[0], signals[1]);
+});
+test('repeated empty responses stop after one recovery and expose retrieved evidence honestly', async () => {
+  let calls = 0;
+  const chat = createChat([record], { apiKey: 'test', fetchImpl: async () => { calls++; return response({ choices: [] }); } });
+  const result = await chat('Les Vagues');
+  assert.equal(calls, 2);
+  assert.equal(result.status, 'error');
+  assert.equal(result.generated_by, 'application');
+  assert.equal(result.evidence[0].id, record.id);
+  assert.match(result.message, /not an AI answer/);
+});
+
 test('client sends bounded free-model request to fixed endpoint', async () => {
   const result = await complete([{ role: 'user', content: 'test' }], { apiKey: 'test-secret', model: 'example:free', fetchImpl: async (url, options) => {
     assert.equal(url, 'https://openrouter.ai/api/v1/chat/completions');
     const body = JSON.parse(options.body);
-    assert.equal(body.max_tokens, 1600);
+    assert.equal(body.max_tokens, 2400);
+    assert.deepEqual(body.reasoning, { enabled: false });
+    assert.equal(body.response_format.json_schema.strict, true);
+    assert.deepEqual(body.response_format.json_schema.schema.properties.statements.items.required, ['text', 'source_ids']);
     assert.deepEqual(body.provider.max_price, { prompt: 0, completion: 0 });
     assert.equal(body.stream, false);
     return response(success);

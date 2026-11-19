@@ -180,6 +180,17 @@ chatbot without local installation. A Dockerfile alone is not completion.
 
 ## Milestone 8 Evaluation and submission
 
+Recommendations reviewed on 19 November: prioritize strict answer schemas, saved
+starter answers and one bounded recovery for empty/truncated model responses. Keep
+retrieved evidence visible and labelled when generation fails. Do not equate source
+conflicts with merely unverified values. Evaluate alias/bilingual support and numeric
+claim checking next. Compare keyword retrieval against hybrid semantic retrieval
+and RRF on a manually checked suite before adopting embeddings or rerankers. The
+proposed 20 candidates, RRF constant 61 and five final records are experimental;
+SQL, embeddings, rerankers and any alternative free models require measured benefit
+and availability checks. The current 35-record implementation uses in-memory filters,
+not SQLite. No vector database is needed at this stage.
+
 Create 15–20 questions with expected evidence, including both sources, numeric
 filters, follow-ups, source conflicts, no-match cases, and unrelated questions.
 

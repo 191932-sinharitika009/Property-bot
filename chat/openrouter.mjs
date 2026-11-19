@@ -1,4 +1,13 @@
 export const DEFAULT_MODEL = 'nvidia/nemotron-3.5-super-vl:free';
+export const ANSWER_FORMAT = { type: 'json_schema', json_schema: { name: 'property_answer', strict: true, schema: {
+  type: 'object', additionalProperties: false, required: ['statements'], properties: {
+    statements: { type: 'array', minItems: 1, maxItems: 8, items: {
+      type: 'object', additionalProperties: false, required: ['text', 'source_ids'], properties: {
+        text: { type: 'string' }, source_ids: { type: 'array', minItems: 1, items: { type: 'string' } },
+      },
+    } },
+  },
+} } };
 
 export class ChatError extends Error {
   constructor(code, message) { super(message); this.code = code; }
@@ -11,11 +20,17 @@ export async function complete(messages, { apiKey = process.env.OPENROUTER_API_K
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    for (let attempt = 0; attempt < 2; attempt++) {
     const response = await fetchImpl('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST', signal: controller.signal,
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: false, temperature: 0.1, max_tokens: 1600,
-        provider: { max_price: { prompt: 0, completion: 0 } } }),
+      body: JSON.stringify({ model, messages: attempt === 0 ? messages : [
+        ...messages,
+        { role: 'system', content: 'The previous attempt was incomplete. Return only the required JSON with at most 4 short cited statements using the supplied evidence. No tools or reasoning. Do not add facts.' },
+      ], stream: false, temperature: 0.1, max_tokens: 2400,
+        reasoning: { enabled: false },
+        response_format: ANSWER_FORMAT,
+        provider: { require_parameters: true, max_price: { prompt: 0, completion: 0 } } }),
     });
     if (!response.ok) {
       const errors = { 401: ['authentication', 'OpenRouter rejected the API key. Check the local configuration.'],
@@ -28,9 +43,13 @@ export async function complete(messages, { apiKey = process.env.OPENROUTER_API_K
     if (body.error) throw new ChatError('provider_unavailable', 'OpenRouter returned a provider error. Please try again later.');
     const choice = body.choices?.[0];
     if (choice?.finish_reason !== 'stop' || typeof choice.message?.content !== 'string' || !choice.message.content.trim()) {
+      const recoverable = !choice || choice.finish_reason === 'length' ||
+        (choice.finish_reason === 'stop' && !choice.message?.content?.trim());
+      if (attempt === 0 && recoverable && !controller.signal.aborted) continue;
       throw new ChatError('incomplete_response', 'The model returned an empty or incomplete answer. Please try again.');
     }
-    return { content: choice.message.content, model: body.model || model, requested_model: model };
+    return { content: choice.message.content, model: body.model || model, requested_model: model, recovery_attempts: attempt };
+    }
   } catch (error) {
     if (error instanceof ChatError) throw error;
     if (controller.signal.aborted) throw new ChatError('timeout', 'The model took too long to respond. Please try again.');

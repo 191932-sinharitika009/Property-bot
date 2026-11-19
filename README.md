@@ -222,10 +222,35 @@ requested and returned model IDs. The CLI is stateless; `createChat` accepts the
 previous result's retrieval context for supported follow-ups, not raw chat history.
 
 Requests use at most five evidence records, a 45,000-character evidence payload,
-1,600 output tokens, a 30-second timeout, and one concurrent request per chat
-instance. There are no automatic retries or paid-model fallbacks. Requests restrict
+2,400 output tokens, reasoning disabled, a strict response schema, a 30-second total
+deadline, and one concurrent request per chat instance. Empty/truncated responses
+allow one recovery within that same deadline; authentication, quota, rate limits and
+deadline expiry are not retried. There are no paid-model fallbacks. Requests restrict
 provider prompt/completion prices to zero. Quota, authentication, timeout, incomplete
 output and invalid-citation failures return safe messages without upstream details.
+Failures also include retrieved source records labelled as evidence, not an AI answer.
+
+The browser's four starter questions use reviewed, saved OpenRouter answers in
+`data/curated/starter-answers.json`. They require no live model calls while the
+dataset, prompt and configured model match the saved fingerprint. Changed data,
+prompts, models or invalid citations invalidate the cache. Sources and conversation
+filters are rebuilt from current retrieval on every request. The UI labels saved
+answers; arbitrary questions and follow-ups still use the live model.
+To regenerate, run `node scripts/cache-starters.mjs` (four live requests, with up to
+one recovery per request), then review the saved claims before deploying. The cache
+is packaged with Docker and persists across service restarts. Failed generation
+leaves the previous file intact. The CLI chat command remains uncached.
+
+To publish updates to an existing Cloud Run service from Cloud Shell:
+
+```bash
+cd ~/Property-bot
+git pull --ff-only origin main
+bash scripts/update-cloud-run.sh
+```
+
+The update script retains the existing service configuration and secret; it does
+not ask for your API key again. GitHub pushes alone do not redeploy Cloud Run.
 
 Citation checks verify source membership and response format; they do not prove
 that every generated claim is supported. Initial live checks covered missing prices,
