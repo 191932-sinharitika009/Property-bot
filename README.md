@@ -109,6 +109,34 @@ verified successfully for Les Vagues on 19 November 2026.
 
 ### GitHub and Render deployment
 
+### Google Cloud Run (selected hosting target)
+
+Use Google Cloud Shell with a project linked to your trial billing account. From
+the repository root, run `bash scripts/deploy-cloud-run.sh`. The script defaults to
+project `project-1275534d-53d6-4c08-b10` and Mumbai (`asia-south1`); optional arguments
+override the project and region. It requires permission to enable APIs, create a
+service account, grant build/secret access, create secrets and deploy public services.
+
+It enables Cloud Run, Cloud Build, Artifact Registry, Secret Manager and IAM;
+grants a dedicated build account the Cloud Run Builder role; creates a
+dedicated runtime account with access only to the chatbot secret; and prompts for
+the OpenRouter key without echoing it. No key is passed in command-line arguments.
+Each run creates a new secret version and pins that version in the deployment.
+
+Cloud Build builds the existing Dockerfile. The `.gcloudignore` allowlist excludes
+local keys, raw pages and unrelated files from the uploaded build context. The
+service allows public access, uses 1 CPU/512 MiB, request-based billing, zero minimum
+instances and a maximum of one instance per revision. Scaling limits reduce usage
+but are not a hard spending cap. Builds, stored images and secrets can also consume
+trial credits. Set billing budget alerts in the console; alerts do not stop spending.
+Sessions live in memory and can reset when the service scales down or restarts.
+
+The script prints the HTTPS URL and checks `/health`. A successful real cited answer
+must still be verified after deployment. This script has not yet run against Google
+Cloud; project/API permissions and the remote build remain unverified.
+
+### Render alternative
+
 The current implementation is organized into component commits created when the
 repository was initialized; commit dates are not a reconstructed development timeline.
 `PROJECT_LOG.md` records the implementation work and its verification history.

@@ -6,6 +6,13 @@ and validation reports are evidence, not additional change logs.
 
 ## Current status — 2026-11-19
 
+Cloud Run preparation: user selected Google Cloud and supplied project ID
+`project-1275534d-53d6-4c08-b10`. Added a Cloud Shell deployment script with remote
+Docker build, dedicated runtime identity, Secret Manager and conservative scaling.
+Added an upload allowlist to exclude local keys and raw data. Local gcloud is absent;
+authenticated deployment and its public URL remain pending. The eight component
+commits were successfully pushed to `191932-sinharitika009/Property-bot` on main.
+
 GitHub/hosting preparation: initialized a local `main` repository using the user's
 existing Git identity. The current implementation is being grouped into component
 commits with real commit timestamps; these are not historical daily checkpoints.
