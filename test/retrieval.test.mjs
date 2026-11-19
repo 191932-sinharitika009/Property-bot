@@ -81,3 +81,23 @@ test('multiple values and exclusions request clarification rather than overridin
     assert.equal(answerSearch(q, records, search).status, 'clarification_required', q);
   }
 });
+
+test('non-Latin queries and amenities cannot widen to an unfiltered search', () => {
+  const search = createSearch([record('latin'), record('arabic', { title: 'شقة', amenities: ['مسبح'] })]);
+  for (const args of [{query:'شقة'}, {filters:{amenity:'مسبح'}}])
+    assert.deepEqual(search(args).results.map(r => r.record.id), ['arabic']);
+  for (const args of [{query:'🏡'}, {filters:{amenity:'?!'}}])
+    assert.equal(search(args).status, 'clarification_required');
+});
+
+test('all inclusive and exclusive budget bound combinations agree with interval arithmetic', () => {
+  const search = createSearch([record('boundary')]);
+  for (const min of ['min_price','min_price_exclusive']) for (const max of ['max_price','max_price_exclusive']) {
+    for (const lo of [999,1000,1001]) for (const hi of [999,1000,1001]) {
+      const run = () => search({filters:{...sale,[min]:lo,[max]:hi}});
+      const strictMin = min.endsWith('exclusive'), strictMax = max.endsWith('exclusive');
+      if (lo > hi || (lo === hi && (strictMin || strictMax))) assert.throws(run, /bounds/);
+      else assert.equal(run().total, Number((strictMin ? lo < 1000 : lo <= 1000) && (strictMax ? hi > 1000 : hi >= 1000)));
+    }
+  }
+});

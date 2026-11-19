@@ -28,7 +28,7 @@ export function interpretQuestion(question, records, previous = {}) {
     if (found.length) filters[key] = found[0];
   }
   extract(/\b(dar\s?global|wasalt)\b/g, 'source', m => m[1].replace(/\s/g, ''));
-  extract(/\bprojects?\b/g, 'record_type', 'project');
+  extract(/\b(?:projects?|developments?)\b/g, 'record_type', 'project');
   extract(/\blistings?\b/g, 'record_type', 'listing');
   extract(/\b(villas?|apartments?|land|floors?|penthouses?)\b/g, 'property_type', m => m[1].replace(/s$/, ''));
   const sale = /\b(sale|buy|purchase)\b/.test(text), rent = /\b(rent|rental|rentals)\b/.test(text);
@@ -58,15 +58,15 @@ export function interpretQuestion(question, records, previous = {}) {
   if (/\b(?:swimming\s+)?pools?\b/.test(text) && /\bgyms?\b/.test(text)) clarification.push('Please search for one amenity at a time.');
   extract(/\b(?:swimming\s+)?pools?\b/g, 'amenity', 'pool');
   extract(/\bgyms?\b/g, 'amenity', 'gym');
-  text = text.replace(/\b(show|find|me|please|what|which|are|is|the|a|an|in|for|with|and|of|have|has|do|does|tell|about|only|instead|options|bedrooms|bedroom|amenities|area|price|prices|cost|how|much|properties|property)\b/g, ' ')
-    .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  text = text.replace(/\b(mentions?|mentioning|feature|featuring|include|including|show|find|me|please|what|which|are|is|the|a|an|in|for|with|and|of|have|has|do|does|tell|about|only|instead|options|bedrooms|bedroom|amenities|area|price|prices|cost|how|much|properties|property)\b/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
   const query = text || (followup ? previous.query ?? '' : '');
   validateFilters(filters);
   return { filters, query, clarification, context: { filters, query } };
 }
 
-export function answerSearch(question, records, search, previous) {
+export function answerSearch(question, records, search, previous, groupCities = false) {
   const interpreted = interpretQuestion(question, records, previous);
   if (interpreted.clarification.length) return { status: 'clarification_required', ...interpreted, results: [], total: 0 };
-  return { ...search(interpreted), context: interpreted.context };
+  return { ...search({ ...interpreted, groupCities }), context: interpreted.context };
 }

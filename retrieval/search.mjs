@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises';
 
 export const normalize = value => String(value ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
-const tokens = value => normalize(value).match(/[a-z0-9]+/g) ?? [];
+const tokens = value => normalize(value).match(/[\p{L}\p{N}]+/gu) ?? [];
 const stem = token => token.length > 3 ? token.replace(/s$/, '') : token;
 const words = value => new Set(tokens(value).map(stem));
-const allowed = new Set(['source', 'record_type', 'city', 'country', 'property_type', 'transaction', 'currency', 'period', 'min_price', 'max_price', 'min_price_exclusive', 'max_price_exclusive', 'bedrooms', 'min_area', 'max_area', 'amenity']);
-const numeric = ['min_price', 'max_price', 'min_price_exclusive', 'max_price_exclusive', 'bedrooms', 'min_area', 'max_area'];
+export const filterKeys = Object.freeze(['source', 'record_type', 'city', 'country', 'property_type', 'transaction', 'currency', 'period', 'min_price', 'max_price', 'min_price_exclusive', 'max_price_exclusive', 'bedrooms', 'min_area', 'max_area', 'amenity']);
+const allowed = new Set(filterKeys);
+export const numericFilterKeys = Object.freeze(['min_price', 'max_price', 'min_price_exclusive', 'max_price_exclusive', 'bedrooms', 'min_area', 'max_area']);
 
 export async function loadRecords(path = new URL('../data/curated/records.jsonl', import.meta.url)) {
   const records = (await readFile(path, 'utf8')).trim().split(/\r?\n/).filter(Boolean).map(JSON.parse);
@@ -19,23 +20,29 @@ export async function loadRecords(path = new URL('../data/curated/records.jsonl'
   return records;
 }
 
+export class InvalidFilters extends Error {}
+export class EmptyFilterRange extends InvalidFilters {}
+
 export function validateFilters(filters) {
-  if (!filters || typeof filters !== 'object' || Array.isArray(filters)) throw new Error('Filters must be an object');
+  if (!filters || typeof filters !== 'object' || Array.isArray(filters)) throw new InvalidFilters('Filters must be an object');
   for (const [key, value] of Object.entries(filters)) {
-    if (!allowed.has(key)) throw new Error(`Unsupported filter: ${key}`);
-    if (numeric.includes(key)) {
-      if (!Number.isFinite(value) || value < 0 || (key === 'bedrooms' && !Number.isInteger(value))) throw new Error(`Invalid ${key}`);
-    } else if (typeof value !== 'string' || !value.trim()) throw new Error(`Invalid ${key}`);
+    if (!allowed.has(key)) throw new InvalidFilters(`Unsupported filter: ${key}`);
+    if (numericFilterKeys.includes(key)) {
+      if (!Number.isFinite(value) || value < 0 || (key === 'bedrooms' && !Number.isInteger(value))) throw new InvalidFilters(`Invalid ${key}`);
+    } else if (typeof value !== 'string' || !value.trim()) throw new InvalidFilters(`Invalid ${key}`);
   }
   for (const [key, values] of Object.entries({ source: ['wasalt', 'darglobal'], record_type: ['listing', 'project'], transaction: ['sale', 'rent'], period: ['month', 'year'] })) {
-    if (filters[key] && !values.includes(filters[key])) throw new Error(`Invalid ${key}`);
+    if (filters[key] && !values.includes(filters[key])) throw new InvalidFilters(`Invalid ${key}`);
   }
   for (const kind of ['price', 'area']) {
-    if (filters[`min_${kind}`] > filters[`max_${kind}`]) throw new Error(`Minimum ${kind} exceeds maximum`);
+    const lower = Math.max(filters[`min_${kind}`] ?? -Infinity, filters[`min_${kind}_exclusive`] ?? -Infinity);
+    const upper = Math.min(filters[`max_${kind}`] ?? Infinity, filters[`max_${kind}_exclusive`] ?? Infinity);
+    if (lower > upper || (lower === upper && (filters[`min_${kind}_exclusive`] === lower || filters[`max_${kind}_exclusive`] === upper)))
+      throw new EmptyFilterRange(`The ${kind} bounds leave no possible values. Please adjust the range.`);
   }
 }
 
-function safeRecord(record) {
+export function safeRecord(record) {
   const safe = structuredClone(record);
   for (const field of safe.quality.blocked_fields ?? []) {
     if (field === 'area') safe.area = { sqm: null, range_sqm: null, kind: null, unit: 'sqm' };
@@ -59,7 +66,7 @@ export function createSearch(records) {
   const index = records.map(safeRecord).map(record => ({ record,
     title: words(record.title),
     text: words([record.title, record.location.city, record.location.country, record.property_type, ...record.amenities].join(' ')) }));
-  return function search({ query = '', filters = {}, limit = 5 } = {}) {
+  return function search({ query = '', filters = {}, limit = 5, groupCities = false } = {}) {
     validateFilters(filters);
     if (typeof query !== 'string' || query.length > 2000) throw new Error('Query must be text of at most 2000 characters');
     if (!Number.isInteger(limit) || limit < 1 || limit > 20) throw new Error('Limit must be 1–20');
@@ -71,6 +78,8 @@ export function createSearch(records) {
     if (filters.period && filters.transaction !== 'rent') clarification.push('A rental period requires the rent transaction filter.');
     if (clarification.length) return { status: 'clarification_required', filters, clarification, total: 0, results: [] };
     const terms = [...words(query)];
+    if ((query.trim() && !terms.length) || (filters.amenity && !words(filters.amenity).size))
+      return { status: 'clarification_required', filters, query, clarification: ['Please include a searchable name or description.'], results: [], total: 0 };
     const matches = index.filter(({ record: r }) => {
       for (const key of ['source', 'record_type']) if (filters[key] && r[key] !== filters[key]) return false;
       for (const key of ['city', 'country']) if (filters[key] && normalize(r.location[key]) !== normalize(filters[key])) return false;
@@ -91,6 +100,17 @@ export function createSearch(records) {
     }).map(entry => ({ ...entry, score: terms.reduce((sum, term) => sum + (entry.title.has(term) ? 3 : entry.text.has(term) ? 1 : 0), 0) }))
       .filter(entry => !terms.length || terms.every(term => entry.text.has(term)))
       .sort((a, b) => b.score - a.score || a.record.id.localeCompare(b.record.id));
+    if (groupCities) {
+      const cities = new Map();
+      for (const { record } of matches) {
+        const city = normalize(record.location.city).trim();
+        if (!city) continue;
+        if (!cities.has(city)) cities.set(city, { record, count: 0 });
+        cities.get(city).count++;
+      }
+      const results = [...cities.values()].sort((a, b) => a.record.location.city.localeCompare(b.record.location.city));
+      return { status: results.length ? 'matches' : 'no_matches', filters, query, total: matches.length, results };
+    }
     return { status: matches.length ? 'matches' : 'no_matches', filters, query, total: matches.length,
       coverage: 'Results cover only the collected snapshot. Availability is unverified; possible duplicate listings are retained.',
       results: matches.slice(0, limit).map(({ record, score }) => ({ score, record })) };

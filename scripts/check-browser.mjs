@@ -13,17 +13,27 @@ try {
   browser = await chromium.launch({ channel: 'chrome', headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
+  const sent = [];
+  page.on('request', request => {
+    if (request.url().endsWith('/api/chat')) sent.push(request.postDataJSON());
+  });
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   await page.getByRole('button', { name: 'Explore Les Vagues' }).click();
   await page.locator('.source-card').waitFor();
   assert.match(await page.locator('#messages').innerText(), /three bedroom/);
   assert.equal(await page.locator('.source-card').getAttribute('href'), 'https://darglobal.co.uk/les-vagues');
+  await page.locator('#question').fill('explain 1');
+  await page.locator('#send').click();
+  await page.waitForFunction(() => document.querySelectorAll('.source-card').length === 2);
+  assert.equal(sent[0].welcomeVisible, true);
+  assert.equal(sent[1].welcomeVisible, false);
+  assert.equal(typeof sent[1].viewId, 'string');
   await page.getByRole('button', { name: 'New conversation' }).click();
   await page.locator('#welcome').waitFor({ state: 'visible' });
-  await page.screenshot({ path: 'data/review/ui-desktop.png', fullPage: true });
+  if (process.argv.includes('--screenshots')) await page.screenshot({ path: 'data/review/ui-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  await page.screenshot({ path: 'data/review/ui-mobile.png', fullPage: true });
+  if (process.argv.includes('--screenshots')) await page.screenshot({ path: 'data/review/ui-mobile.png', fullPage: true });
   assert.deepEqual(errors, []);
   console.log('Browser checks passed: starter, answer, source link, reset, mobile width, no page errors.');
 } finally {
