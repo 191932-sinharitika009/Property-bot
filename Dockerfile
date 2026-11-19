@@ -4,7 +4,7 @@ ENV NODE_ENV=production PORT=8000
 # The web application uses Node built-ins only; scraper dependencies stay outside.
 COPY --chown=node:node server.mjs ./
 COPY --chown=node:node chat/ ./chat/
-COPY --chown=node:node retrieval/search.mjs retrieval/question.mjs ./retrieval/
+COPY --chown=node:node retrieval/search.mjs retrieval/question.mjs retrieval/references.mjs ./retrieval/
 COPY --chown=node:node public/ ./public/
 COPY --chown=node:node data/curated/records.jsonl ./data/curated/records.jsonl
 USER node

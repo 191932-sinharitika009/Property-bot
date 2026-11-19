@@ -1,5 +1,6 @@
 import { createSearch } from '../retrieval/search.mjs';
 import { answerSearch } from '../retrieval/question.mjs';
+import { resolveReference } from '../retrieval/references.mjs';
 import { complete, ChatError } from './openrouter.mjs';
 
 export const SYSTEM = `You answer questions about a collected DarGlobal and Wasalt property snapshot.
@@ -10,6 +11,13 @@ Preserve currency, rental period, published status, quality warnings and duplica
 Unknown or withheld prices/areas are unknown. Never infer availability, fix unusual prices,
 convert money or rental periods, or claim complete market coverage. Filters were applied by code.
 Answer the question concisely. If evidence cannot answer it, say what is missing.
+When selected_property is supplied, the user refers to that property from the
+previous answer. Answer about only that property. For "tell me more", explain its
+available location, property type, bedroom options, amenities, published status,
+price and important limitations, without inventing details.
+When selected_starter is supplied, the user's number refers to a welcome-screen
+starter option. Answer that starter's question using the evidence; explain what
+was found rather than asking which option they meant.
 Use plain language for visitors. Never expose field names, null values, warning codes,
 or duplicate-group identifiers in statement text. Say "the price is not recorded",
 "the area has conflicting information", or "these may describe the same property".
@@ -47,7 +55,15 @@ export function createChat(records, { completeImpl = complete, ...config } = {})
   const search = createSearch(records);
   let busy = false;
   return async function chat(question, context = {}) {
-    const retrieval = answerSearch(question, records, search, context);
+    const reference = resolveReference(question, context);
+    if (reference?.clarification) return { status: 'clarification_required', generated_by: 'application',
+      message: reference.clarification, context, sources: [], total_matches: 0 };
+    const selected = reference?.id ? records.find(r => r.id === reference.id) : null;
+    if (reference?.id && !selected) return { status: 'clarification_required', generated_by: 'application',
+      message: 'That property is no longer in this snapshot. Please search again.', context: {}, sources: [], total_matches: 0 };
+    const retrieval = selected
+      ? { ...createSearch([selected])(), context: { filters: context.filters ?? {}, query: selected.title, selected_id: selected.id } }
+      : answerSearch(reference?.starter_question ?? question, records, search, context);
     const base = { context: retrieval.context, total_matches: retrieval.total, coverage: retrieval.coverage };
     if (retrieval.status === 'clarification_required') return { ...base, status: 'clarification_required', generated_by: 'application', message: retrieval.clarification.join(' '), sources: [] };
     if (retrieval.status === 'no_matches') return { ...base, status: 'no_matches', generated_by: 'application', message: 'No matching evidence was found in the collected snapshot. Try a supported location, project name, or simpler filters.', sources: [] };
@@ -56,12 +72,16 @@ export function createChat(records, { completeImpl = complete, ...config } = {})
     try {
       const evidence = retrieval.results.map(({ record }) => record);
       const payload = JSON.stringify({ question, filters: retrieval.filters, search_terms: retrieval.query,
+        selected_property: selected ? { id: selected.id, title: selected.title, previous_source_number: reference.number } : undefined,
+        selected_starter: reference?.starter_question ? { number: reference.number, question: reference.starter_question } : undefined,
         total_matches: retrieval.total, evidence });
       if (payload.length > 45000) throw new ChatError('context_limit', 'The selected evidence is too large. Please narrow the search.');
       const response = await completeImpl([{ role: 'system', content: SYSTEM }, { role: 'user', content: payload }], config);
-      return { ...base, status: 'answer', generated_by: 'openrouter', model: response.model,
+      const answer = validateAnswer(response.content, evidence);
+      return { ...base, context: { ...base.context, displayed_ids: answer.sources.map(r => r.id) },
+        status: 'answer', generated_by: 'openrouter', model: response.model,
         requested_model: response.requested_model, recovery_attempts: response.recovery_attempts ?? 0,
-        ...validateAnswer(response.content, evidence) };
+        ...answer };
     } catch (error) {
       if (!(error instanceof ChatError)) throw error;
       return { ...base, status: 'error', generated_by: 'application', code: error.code,

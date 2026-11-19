@@ -238,6 +238,14 @@ The optional `--legacy` mode tests the first question with the old 1,600-token,
 default-reasoning configuration to diagnose truncation; do not use that mode for
 normal operation. These diagnostics make real model requests and use API quota.
 
+Numbered references now use the conversation's displayed order. As an initial
+question, `tell me more about 4th` selects the fourth welcome option (DarGlobal
+projects with a pool). After an answer, it selects the fourth numbered source card
+from that answer. `What is its price?` continues with the selected property. Explicit
+`4th starter` always refers to the welcome option. Out-of-range numbers and ambiguous
+pronouns request clarification. Only property IDs and filter context are retained;
+answers are generated live. New conversation resets these references.
+
 To publish updates to an existing Cloud Run service from Cloud Shell:
 
 ```bash

@@ -6,6 +6,16 @@ and validation reports are evidence, not additional change logs.
 
 ## Current status — 2026-11-19
 
+Numbered-reference update (awaiting redeploy): initial `tell me more about 4th`
+selects the fourth welcome-screen starter, DarGlobal projects with a swimming pool.
+After an answer, ordinal references select source cards in their actual displayed
+order. Follow-ups such as `What is its price?` retain the selected property. Missing
+or out-of-range references clarify without a model request. No answers are cached.
+Added resolver and regression tests; 60 automated tests passed, and the five
+reference tests passed again after the final intent adjustment. A live initial
+`tell me more about 4th` returned pool projects with five valid source citations
+and no recovery. Runtime packaging includes the resolver.
+
 ## 2026-11-19 — Live-only generation and debugging results
 
 - User explicitly withdrew saved starter answers. Removed the cache reader,
