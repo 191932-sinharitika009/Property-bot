@@ -1,0 +1,13 @@
+**
+!Dockerfile
+!server.mjs
+!chat/
+!chat/*.mjs
+!retrieval/
+!retrieval/search.mjs
+!retrieval/question.mjs
+!public/
+!public/**
+!data/
+!data/curated/
+!data/curated/records.jsonl
