@@ -6,16 +6,35 @@ and validation reports are evidence, not additional change logs.
 
 ## Current status — 2026-11-19
 
-Reliability update (awaiting Cloud Run redeploy): four reviewed starter answers
-are now saved and included in Docker. All four were browser-tested with provider
-calls forbidden. Strict response schema, disabled reasoning and a 2,400-token limit
+## 2026-11-19 — Live-only generation and debugging results
+
+- User explicitly withdrew saved starter answers. Removed the cache reader,
+  generator, generated-answer file, Docker/upload inclusion and UI saved labels.
+  Every successful question, including repeated starters, uses a fresh model call.
+- Tested Riyadh using old request settings: response completed, but consumed 1,539
+  of 1,600 output tokens, including 1,205 reasoning tokens. This supports token-budget
+  pressure as a possible cause, not proof of the earlier uncaptured failure.
+- All four starters plus a repeat of Riyadh succeeded using live requests with
+  disabled reasoning and strict per-statement citation schema. Each used zero
+  reasoning tokens; total output tokens were 214, 60, 146, 443 and 244 respectively.
+  None needed recovery. No generated answers were saved by the diagnostic script.
+- Verified 55 automated tests, including a test requiring two provider calls for
+  two identical starter questions. Browser smoke checks passed. Changes still need
+  to be deployed to Cloud Run using the update script; a GitHub push is not deployment.
+
+Reliability update (awaiting Cloud Run redeploy): the user withdrew saved answers.
+Removed cache code, answer file, packaging entries and UI cache labels; all starter
+questions generate live answers. Strict response schema, disabled reasoning and a 2,400-token limit
 reduce formatting/truncation failures. One empty/truncated-response recovery shares
 the original 30-second deadline. AI failures expose labelled retrieved evidence.
-Fifty-six automated tests and 19 retrieval cases pass. Recommendations from the
+The previous cache implementation passed 56 tests and is superseded below. Recommendations from the
 user's RECOMMENDATIONS.md were reviewed; measured retrieval improvements are recorded
 in PLAN.md rather than adding untested embedding/reranking dependencies now.
 
-## 2026-11-19 — Starter cache and response reliability
+## 2026-11-19 — Starter cache experiment and response reliability (cache withdrawn)
+
+The saved-answer experiment described in this entry was removed at the user's
+request. It is retained here as change history, not current application behavior.
 
 - Diagnosed the first starter: a live completed answer omitted per-statement source
   IDs and instead returned a top-level citation list, correctly failing validation.

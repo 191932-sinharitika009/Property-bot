@@ -230,16 +230,13 @@ provider prompt/completion prices to zero. Quota, authentication, timeout, incom
 output and invalid-citation failures return safe messages without upstream details.
 Failures also include retrieved source records labelled as evidence, not an AI answer.
 
-The browser's four starter questions use reviewed, saved OpenRouter answers in
-`data/curated/starter-answers.json`. They require no live model calls while the
-dataset, prompt and configured model match the saved fingerprint. Changed data,
-prompts, models or invalid citations invalidate the cache. Sources and conversation
-filters are rebuilt from current retrieval on every request. The UI labels saved
-answers; arbitrary questions and follow-ups still use the live model.
-To regenerate, run `node scripts/cache-starters.mjs` (four live requests, with up to
-one recovery per request), then review the saved claims before deploying. The cache
-is packaged with Docker and persists across service restarts. Failed generation
-leaves the previous file intact. The CLI chat command remains uncached.
+Every starter question generates a fresh model answer. No generated answers are
+cached or saved by the application. `node scripts/check-live-starters.mjs` tests
+all four live questions and repeats the first to check fresh generation. It prints
+only completion metadata, statuses and citation counts, not answer text or reasoning.
+The optional `--legacy` mode tests the first question with the old 1,600-token,
+default-reasoning configuration to diagnose truncation; do not use that mode for
+normal operation. These diagnostics make real model requests and use API quota.
 
 To publish updates to an existing Cloud Run service from Cloud Shell:
 

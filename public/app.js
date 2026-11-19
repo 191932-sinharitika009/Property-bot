@@ -29,7 +29,6 @@ async function ask(question) {
       card.append(link);
     }
     if (data.statements) {
-      if (data.generated_by === 'saved_openrouter') card.append(element('p', 'Saved answer · based on this collection', 'note'));
       if (data.total_matches > data.sources.length) card.append(element('p', `Showing selected evidence from ${data.total_matches} matching records.`, 'note'));
       for (const statement of data.statements) {
         const numbers = statement.source_ids.map(id => data.sources.findIndex(s => s.id === id) + 1);

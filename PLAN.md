@@ -180,8 +180,9 @@ chatbot without local installation. A Dockerfile alone is not completion.
 
 ## Milestone 8 Evaluation and submission
 
-Recommendations reviewed on 19 November: prioritize strict answer schemas, saved
-starter answers and one bounded recovery for empty/truncated model responses. Keep
+Recommendations reviewed on 19 November: prioritize strict answer schemas and
+one bounded recovery for empty/truncated model responses. All starter answers must
+be generated live; saved-answer caching was withdrawn by the user. Keep
 retrieved evidence visible and labelled when generation fails. Do not equate source
 conflicts with merely unverified values. Evaluate alias/bilingual support and numeric
 claim checking next. Compare keyword retrieval against hybrid semantic retrieval

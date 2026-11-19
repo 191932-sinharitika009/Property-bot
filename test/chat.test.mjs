@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { complete, ChatError } from '../chat/openrouter.mjs';
-import { createChat, validateAnswer, SYSTEM } from '../chat/answer.mjs';
-import { cacheKey, normalizeQuestion } from '../chat/starter-cache.mjs';
+import { createChat, validateAnswer } from '../chat/answer.mjs';
 
 const record = { id: 'darglobal:test', title: 'Les Vagues', source: 'darglobal', record_type: 'project',
   source_url: 'https://darglobal.co.uk/les-vagues', collected_at: '2026-11-19',
@@ -13,29 +12,13 @@ const content = JSON.stringify({ statements: [{ text: 'Bedroom options include 1
 const response = body => new Response(JSON.stringify(body), { status: 200 });
 const success = { model: 'test:free', choices: [{ finish_reason: 'stop', message: { content } }] };
 
-test('saved starters bypass the provider but preserve current filters and source validation', async () => {
-  const starterCache = { fingerprint: cacheKey([record], SYSTEM, 'test:free'), answers: {
-    [normalizeQuestion('Les Vagues bedroom options')]: { statements: JSON.parse(content).statements, model: 'test:free', saved_at: '2026-11-19' },
-  } };
-  const chat = createChat([record], { model: 'test:free', starterCache, completeImpl: () => assert.fail('Must use saved answer') });
-  const result = await chat('  Les Vagues bedroom options  ');
-  assert.equal(result.generated_by, 'saved_openrouter');
-  assert.equal(result.sources[0].url, record.source_url);
-  assert.equal(result.context.query, 'les vagues');
+test('repeated starter questions always generate a fresh answer', async () => {
+  let calls = 0;
+  const chat = createChat([record], { completeImpl: async () => { calls++; return { content, model: 'test:free' }; } });
+  for (let i = 0; i < 2; i++) assert.equal((await chat('Les Vagues bedroom options')).generated_by, 'openrouter');
+  assert.equal(calls, 2);
 });
-test('stale cache and corrupt citations fall back to generation', async () => {
-  for (const cache of [
-    { fingerprint: 'old', answers: {} },
-    { fingerprint: cacheKey([record], SYSTEM, 'test:free'), answers: { 'les vagues bedroom options': { statements: [{ text: 'Bad', source_ids: ['unknown'] }], model: 'test:free', saved_at: '2026-11-19' } } },
-  ]) {
-    let calls = 0;
-    const chat = createChat([record], { model: 'test:free', starterCache: cache, completeImpl: async () => { calls++; return { content, model: 'test:free' }; } });
-    assert.equal((await chat('Les Vagues bedroom options')).generated_by, 'openrouter');
-    assert.equal(calls, 1);
-  }
-  assert.notEqual(cacheKey([record], SYSTEM, 'test:free'), cacheKey([{ ...record, title: 'Changed' }], SYSTEM, 'test:free'));
-  assert.notEqual(cacheKey([record], SYSTEM, 'test:free'), cacheKey([record], SYSTEM + 'changed', 'test:free'));
-});
+
 test('one incomplete generation recovers within the same request deadline', async () => {
   let calls = 0;
   const signals = [];
