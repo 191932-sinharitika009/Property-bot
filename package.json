@@ -1,0 +1,27 @@
+{
+  "name": "property-chatbot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Source-grounded DarGlobal and Wasalt chatbot assignment",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "scrape": "node scrapers/scrape.mjs",
+    "scrape:darglobal": "node scrapers/darglobal-crawl.mjs",
+    "build:dataset": "node scripts/build-dataset.mjs",
+    "search": "node scripts/search.mjs",
+    "chat": "node scripts/chat.mjs",
+    "evaluate:retrieval": "node scripts/evaluate-retrieval.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "cheerio": "1.1.2",
+    "robots-parser": "3.0.1"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.65.1"
+  }
+}

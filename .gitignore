@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.*
+!.env.example
+data/raw/
+data/runs/
+data/wasalt/
+data/darglobal/
+data/review/
+data/curated/*
+!data/curated/records.jsonl
+!data/curated/manifest.json
+*.log
