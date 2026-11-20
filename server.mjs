@@ -43,27 +43,41 @@ export function createServer({ records, chat = createChat(records), rateLimit = 
       let input;
       try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return send(400, { message: 'Invalid JSON.' }); }
       if (!input || typeof input !== 'object') return send(400, { message: 'Invalid request.' });
-      const id = /(?:^|;\s*)property_session=([a-f0-9-]{36})(?:;|$)/.exec(req.headers.cookie ?? '')?.[1];
+      if (input.tabId !== undefined && (typeof input.tabId !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(input.tabId)))
+        return send(400, { message: 'Invalid conversation tab.' });
+      const cookieName = input.tabId ? 'property_session_' + input.tabId : 'property_session';
+      const cookie = (req.headers.cookie ?? '').split(';').map(value => value.trim()).find(value => value.startsWith(cookieName + '='));
+      let id = cookie?.slice(cookieName.length + 1);
       if (path === '/api/reset') {
+        const current = sessions.get(id);
+        if (current && input.viewId !== current.viewId)
+          return send(409, { code: 'stale_view', message: 'Reload this tab to start a new conversation.' });
+        if (current?.busy) return send(409, { message: 'Please wait for your current answer.' });
         if (id) sessions.delete(id);
-        res.setHeader('Set-Cookie', 'property_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+        res.setHeader('Set-Cookie', `${cookieName}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`);
         return send(200, { status: 'reset' });
       }
       if (typeof input.question !== 'string' || !input.question.trim() || input.question.length > 2000) return send(400, { message: 'Enter a question of 1–2000 characters.' });
       let session = id && sessions.get(id);
+      if (input.viewId != null && input.viewId !== session?.viewId)
+        return send(409, { code: 'stale_view', message: 'This conversation expired or changed in another tab. Choose New conversation and repeat your search.' });
       if (!session) {
         if (sessions.size >= 1000) return send(503, { message: 'The demo is busy. Please try later.' });
-        const newId = randomUUID();
-        session = { context: {}, updated: time, busy: false }; sessions.set(newId, session);
-        res.setHeader('Set-Cookie', `property_session=${newId}; HttpOnly; SameSite=Strict; Path=/; Max-Age=1800${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
+        id = randomUUID();
+        session = { viewId: randomUUID(), context: {}, updated: time, busy: false }; sessions.set(id, session);
+
       }
       if (session.busy) return send(409, { message: 'Please wait for your current answer.' });
+      res.setHeader('Set-Cookie', `${cookieName}=${id}; HttpOnly; SameSite=Strict; Path=/; Max-Age=1800${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
       session.busy = true; session.updated = time;
       try {
-        const result = await chat(input.question.trim(), session.context);
-        if (result.status !== 'error') session.context = result.context ?? {};
+        const result = await chat(input.question.trim(), input.welcomeVisible === true ? { welcomeVisible: true } : { ...session.context, welcomeVisible: false });
+        if (result.status !== 'error') {
+          session.context = result.context ?? {};
+          session.viewId = randomUUID();
+        }
         const { context, ...publicResult } = result;
-        return send(result.status === 'error' ? 503 : 200, publicResult);
+        return send(result.status === 'error' ? 503 : 200, { ...publicResult, viewId: session.viewId });
       } finally { session.busy = false; }
     } catch { if (!res.headersSent) send(500, { message: 'The request could not be completed. Please try again.' }); else res.end(); }
   });
@@ -74,6 +88,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const records = await loadRecords();
   const server = createServer({ records });
   const port = Number(process.env.PORT || 8000);
-  server.listen(port, '0.0.0.0', () => console.log(`Property chat is running at http://localhost:${port}`));
+  server.listen(port, process.env.HOST || '0.0.0.0', () => console.log(`Property chat is running at http://localhost:${port}`));
   for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => server.close(() => process.exit(0)));
 }

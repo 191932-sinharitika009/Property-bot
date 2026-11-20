@@ -1,9 +1,10 @@
+import { factFields } from './facts.mjs';
 export const DEFAULT_MODEL = 'nvidia/nemotron-3.5-super-vl:free';
 export const ANSWER_FORMAT = { type: 'json_schema', json_schema: { name: 'property_answer', strict: true, schema: {
   type: 'object', additionalProperties: false, required: ['statements'], properties: {
     statements: { type: 'array', minItems: 1, maxItems: 8, items: {
-      type: 'object', additionalProperties: false, required: ['text', 'source_ids'], properties: {
-        text: { type: 'string' }, source_ids: { type: 'array', minItems: 1, items: { type: 'string' } },
+      type: 'object', additionalProperties: false, required: ['record_id', 'fields'], properties: {
+        record_id: { type: 'string' }, fields: { type: 'array', minItems: 1, maxItems: factFields.length, items: { type: 'string', enum: factFields } },
       },
     } },
   },
@@ -14,7 +15,7 @@ export class ChatError extends Error {
 }
 
 export async function complete(messages, { apiKey = process.env.OPENROUTER_API_KEY,
-  model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL, fetchImpl = fetch, timeoutMs = 30000 } = {}) {
+  model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL, responseFormat = ANSWER_FORMAT, conversation = false, fetchImpl = fetch, timeoutMs = 90_000 } = {}) {
   if (!apiKey?.trim()) throw new ChatError('missing_key', 'Set OPENROUTER_API_KEY privately in .env to enable AI answers.');
   if (!(model.endsWith(':free') || model === 'openrouter/free')) throw new ChatError('paid_model_disabled', 'Only free OpenRouter models are enabled.');
   const controller = new AbortController();
@@ -26,10 +27,10 @@ export async function complete(messages, { apiKey = process.env.OPENROUTER_API_K
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, messages: attempt === 0 ? messages : [
         ...messages,
-        { role: 'system', content: 'The previous attempt was incomplete. Return only the required JSON with at most 4 short cited statements using the supplied evidence. No tools or reasoning. Do not add facts.' },
+        { role: 'system', content: responseFormat !== ANSWER_FORMAT ? 'Return a complete routing decision matching the required schema.' : conversation ? 'Please give a concise plain-text reply to the user.' : 'The previous attempt was incomplete. Return only the required JSON with at most four record and field selections from the supplied evidence. No tools or reasoning. Do not add facts.' },
       ], stream: false, temperature: 0.1, max_tokens: 2400,
         reasoning: { enabled: false },
-        response_format: ANSWER_FORMAT,
+        ...(conversation ? {} : { response_format: responseFormat }),
         provider: { require_parameters: true, max_price: { prompt: 0, completion: 0 } } }),
     });
     if (!response.ok) {

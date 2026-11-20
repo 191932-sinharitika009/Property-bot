@@ -1,6 +1,8 @@
 const form = document.querySelector('#chat-form'), input = document.querySelector('#question');
 const messages = document.querySelector('#messages'), status = document.querySelector('#status');
 let busy = false;
+const tabId = crypto.randomUUID();
+let viewId = null;
 function element(tag, text, className) { const el = document.createElement(tag); el.textContent = text; if (className) el.className = className; return el; }
 function message(role, text) {
   document.querySelector('#welcome').hidden = true;
@@ -11,10 +13,12 @@ function message(role, text) {
 function lock(value) { busy = value; document.querySelectorAll('button').forEach(button => button.disabled = value); input.disabled = value; status.textContent = value ? 'Finding evidence and preparing your answer…' : ''; }
 async function ask(question) {
   if (busy || !question.trim()) return;
+  const welcomeVisible = !document.querySelector('#welcome').hidden;
   message('user', question); input.value = ''; lock(true);
   try {
-    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }), signal: AbortSignal.timeout(45000) });
+    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, welcomeVisible, viewId, tabId }), signal: AbortSignal.timeout(195_000) });
     const data = await response.json();
+    if (data.viewId) viewId = data.viewId;
     const card = message(response.ok ? 'assistant' : 'error', data.message);
     for (const record of data.evidence ?? []) {
       const url = new URL(record.url);
@@ -31,11 +35,11 @@ async function ask(question) {
     if (data.statements) {
       if (data.total_matches > data.sources.length) card.append(element('p', `Showing selected evidence from ${data.total_matches} matching records.`, 'note'));
       for (const statement of data.statements) {
-        const numbers = statement.source_ids.map(id => data.sources.findIndex(s => s.id === id) + 1);
+        const numbers = statement.source_ids.map(id => data.sources.find(s => s.id === id)?.number ?? (data.sources.findIndex(s => s.id === id) + 1));
         card.append(element('p', `${statement.text} [${numbers.join(', ')}]`));
       }
       data.sources.forEach((source, i) => {
-        const link = element('a', `${i + 1}. ${source.title}`, 'source-card');
+        const link = element('a', `${source.number ?? i + 1}. ${source.title}`, 'source-card');
         const url = new URL(source.url);
         if (url.protocol !== 'https:' || !['wasalt.sa', 'darglobal.co.uk'].includes(url.hostname)) return;
         link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer';
@@ -54,9 +58,9 @@ document.querySelectorAll('[data-question]').forEach(button => button.addEventLi
 document.querySelector('#reset').addEventListener('click', async () => {
   lock(true);
   try {
-    const response = await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const response = await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tabId, viewId }) });
     if (!response.ok) throw new Error();
-    messages.replaceChildren(); document.querySelector('#welcome').hidden = false; input.value = '';
+    viewId = null; messages.replaceChildren(); document.querySelector('#welcome').hidden = false; input.value = '';
   } catch { message('error', 'Could not reset the conversation. Please try again.'); }
   finally { lock(false); input.focus(); }
 });

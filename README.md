@@ -216,35 +216,34 @@ npm.cmd run chat -- "Les Vagues bedroom options"
 This command retrieves evidence and makes one real OpenRouter request when a key
 is present. Missing keys produce an explicit error. No-match and clarification
 responses come from application code and do not call the model. No local response
-is presented as an AI answer. Model responses must be JSON statements with valid
-source IDs; URLs and source cards come from the dataset. The output reports both
+is presented as an AI answer. For property answers, the model selects retrieved record IDs and field names. The server renders facts, units, rental periods and source links from those records. The output reports both
 requested and returned model IDs. The CLI is stateless; `createChat` accepts the
 previous result's retrieval context for supported follow-ups, not raw chat history.
 
 Requests use at most five evidence records, a 45,000-character evidence payload,
-2,400 output tokens, reasoning disabled, a strict response schema, a 30-second total
-deadline, and one concurrent request per chat instance. Empty/truncated responses
+2,400 output tokens, reasoning disabled, a strict response schema, a 90-second deadline per provider stage (up to 180 seconds for routing plus answering, with a 195-second browser timeout), and up to four concurrent chat requests per process. Each session handles one turn at a time. Empty/truncated responses
 allow one recovery within that same deadline; authentication, quota, rate limits and
 deadline expiry are not retried. There are no paid-model fallbacks. Requests restrict
 provider prompt/completion prices to zero. Quota, authentication, timeout, incomplete
 output and invalid-citation failures return safe messages without upstream details.
 Failures also include retrieved source records labelled as evidence, not an AI answer.
 
-Every starter question generates a fresh model answer. No generated answers are
-cached or saved by the application. `node scripts/check-live-starters.mjs` tests
+Every starter question generates a fresh model answer. The session retains up to eight recent messages in memory for follow-ups. `node scripts/check-live-starters.mjs` tests
 all four live questions and repeats the first to check fresh generation. It prints
 only completion metadata, statuses and citation counts, not answer text or reasoning.
 The optional `--legacy` mode tests the first question with the old 1,600-token,
 default-reasoning configuration to diagnose truncation; do not use that mode for
 normal operation. These diagnostics make real model requests and use API quota.
 
-Numbered references now use the conversation's displayed order. As an initial
-question, `tell me more about 4th` selects the fourth welcome option (DarGlobal
-projects with a pool). After an answer, it selects the fourth numbered source card
-from that answer. `What is its price?` continues with the selected property. Explicit
-`4th starter` always refers to the welcome option. Out-of-range numbers and ambiguous
-pronouns request clarification. Only property IDs and filter context are retained;
-answers are generated live. New conversation resets these references.
+A number selects a starter while the welcome screen is visible. After a search,
+numbers identify the source cards in their displayed order. Opening card 2 keeps
+its number for later turns, including after a greeting. A new search supplies a
+new list. A stale browser view, server restart, or expired session prompts the
+visitor to start a new conversation. Sessions are kept in memory on one instance.
+
+Run `npm test` for automated checks, `node scripts/check-browser.mjs` for the
+browser smoke test, and `node scripts/check-conversation.mjs` against a running
+local server for the live conversation check. The last check uses OpenRouter quota.
 
 To publish updates to an existing Cloud Run service from Cloud Shell:
 
